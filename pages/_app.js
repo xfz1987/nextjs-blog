@@ -1,19 +1,15 @@
-import Head from 'next/head';
-import Layout from '@/components/layout';
-import '../styles/globals.css';
+import { SessionProvider } from 'next-auth/react';
 
-function MyApp({ Component, pageProps }) {
+import Layout from '@/components/layout/layout';
+import '@/styles/globals.css';
+
+function MyApp({ Component, pageProps: { session, ...rest } }) {
 	return (
-		<Layout>
-			<Head>
-				<title>Ryyun's Blog</title>
-				<meta
-					name="viewport"
-					content="width=device-width, initial-scale=1"
-				/>
-			</Head>
-			<Component {...pageProps} />
-		</Layout>
+		<SessionProvider session={session}>
+			<Layout>
+				<Component {...rest} />
+			</Layout>
+		</SessionProvider>
 	);
 }
 

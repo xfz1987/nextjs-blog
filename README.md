@@ -27,6 +27,7 @@ SSG(静态生成) / ISR(增量静态生成)
 // react 组件
 const Page = ({ data }: any) => {
 return (
+
 <div>
 {data}
 </div>
@@ -35,7 +36,7 @@ return (
 
 export default Page;
 
-/****\*\*\***** 静态生成：SSG ****\*****/
+/\***\*\*\*\*\*\*** 静态生成：SSG \***\*\*\*\***/
 export async function getStaticProps(context: NextPageContext) {
 const { id } = context.params;
 const data = await fetch(`https://api/${id}/`).then(data => data.json());
@@ -76,6 +77,7 @@ SSR
 // react 组件
 const Page = ({ data }: any) => {
 return (
+
 <div>
 {data}
 </div>
@@ -181,6 +183,7 @@ if (error) return <div>Failed to load</div>
 if (!data) return <div>Loading...</div>
 
 return (
+
 <div>
 <h1>{data.name}</h1>
 <p>{data.bio}</p>
@@ -206,6 +209,7 @@ import { Html, Head, Main, NextScript } from 'next/document'
 
 export default function Document() {
 return (
+
 <Html>
 <Head />
 <body>
@@ -222,6 +226,7 @@ import Document, { Html, Head, Main, NextScript } from 'next/document';
 class MyDocument extends Document {
 render() {
 return (
+
 <Html lang='en'>
 <Head />
 <body>
@@ -860,9 +865,9 @@ export declare const PHASE_TEST = "phase-test";
 const { PHASE_PRODUCTION_BUILD } = require('next/constants')
 
 module.exports = (phase, { defaultConfig }) => {
-if (phase === PHASE_PRODUCTION_BUILD) {
+if (phase === PHASE*PRODUCTION_BUILD) {
 return {
-/_ 生产构建配置 _/
+/* 生产构建配置 \_/
 }
 }
 
@@ -874,3 +879,210 @@ return {
 部署
 ● vercel
 ● cloudflare
+
+Authenication
+● Signup & Login
+● Controlling Page Access
+session vs token
+
+Type session token（例如 JWT）
+存储方式 当用户登录时，服务器会创建一个 session，并为其生成一个唯一的 session ID。
+这个 session ID 会被存储在客户端的 cookie 中。
+服务器通常在后端存储 session 数据，例如在内存、数据库或其他存储系统中 当用户登录时，服务器会生成一个 token。
+这个 token 包含了一些用户的数据，以及签名来确保其完整性。
+客户端会存储这个 token，例如在 cookie、localStorage 或其他地方。
+当客户端进行请求时，它会将 token 发送到服务器，服务器会验证 token 的有效性
+状态 通常是有状态的。意味着服务器需要存储关于每个 session 的信息 通常是无状态的。服务器不需要存储 token 的信息，因为每次请求都会带有 token，服务器只需验证其有效性
+跨域 Cookies 在默认情况下不支持跨域 可以轻松地在不同的域之间传输，因为它们只是一个字符串
+过期方式 可以设置 session 的过期时间，在此时间后，session 就会失效 可以在生成 token 时设置过期时间，也可以为 token 设置刷新策略
+安全性 由于 session ID 通常存储在 cookie 中，它可能容易受到 CSRF（跨站请求伪造）攻击 如果存储在 HTTP-only 的 cookie 中，可以减少 XSS（跨站脚本）攻击的风险，但如果不当地使用，可能会暴露于其他攻击。
+可扩展性 对于大型应用，管理服务器上的 session 可能会变得复杂，尤其是在负载均衡环境中 由于是无状态的，因此很容易扩展，适用于大型、分布式应用
+使用场景 适合传统的、单一的 web 应用 适合 SPA（单页应用）、移动应用、API 服务和跨域场景
+JSON Web Tokens
+token 是一个随机字符串，这个令牌数据由单部分组成：
+● Isuuer Data:: 发行人数据
+● Custom Data：自定义数据，如用户信息
+● Secret Signing Key：密钥（存储在服务端，客户端永远看不到）
+
+start now
+鉴权
+npm i -S next-auth
+在 API 路由中，创建特殊文件 /api/auth/[...nextauth].js，在文件内引入 next-auth 包并实现相关逻辑
+/\*\*
+
+- Authentication
+- used for login
+- http://localhost:3000/api/auth/callback/credentials?
+- arter login, cookie has next-auth.session-token. this is session-token
+  \*/
+  import NextAuth from 'next-auth';
+  import CredentialsProvider from 'next-auth/providers/credentials';
+  import { verifyPassword } from '@/lib/auth';
+  import { connectToDatabase } from '@/lib/db';
+
+export const authOptions = {
+providers: [
+CredentialsProvider({
+name: 'Credentials',
+session: {
+strategy: 'jwt',
+},
+// verify logic
+async authorize(credentials, req) {
+const client = await connectToDatabase();
+const usersCollection = client.db().collection('users');
+const user = await usersCollection.findOne({
+email: credentials.email,
+});
+
+    			if (!user) {
+    				client.close();
+    				throw new Error('No user found!');
+    			}
+
+    			const isValid = await verifyPassword(credentials.password, user.password);
+
+    			if (!isValid) {
+    				client.close();
+    				throw new Error('Could not log you in!');
+    			}
+
+    			client.close();
+
+    			return { email: user.email };
+    		},
+    	}),
+    	// ...other providers
+    ],
+    // callbacks: {
+    // 	async session({ session, token, user }) {
+    // 		return session;
+    // 	},
+    // },
+
+};
+
+export default NextAuth(authOptions);
+● 登录： 使用 signIn， 会访问 http://localhost:3000/api/auth/callback/credentials?
+import { signIn } from 'next-auth/react';
+
+       try {
+    			const result = await signIn('credentials', {
+    				redirect: false,
+    				email: enteredEmail,
+    				password: enteredPassword,
+    			});
+
+    			if (!result.ok || result.error) {
+    				throw new Error(result.error);
+    			}
+    			// set some auth state
+    			router.replace('/profile');
+    		} catch (e) {
+    			console.error(e);
+    		} finally {
+    			、
+    		}
+
+● 退出：signOut，会访问 http://localhost:3000/api/auth/signout
+import { signOut } from 'next-auth/react';
+const logoutHandler = () => signOut();
+● \_app.js 中，使用 provider 来包裹，以便在前端使用 useSession
+import { SessionProvider } from 'next-auth/react';
+
+import Layout from '@/components/layout/layout';
+import '@/styles/globals.css';
+
+function MyApp({ Component, pageProps: { session, ...rest } }) {
+return (
+<SessionProvider session={session}>
+<Layout>
+<Component {...rest} />
+</Layout>
+</SessionProvider>
+);
+}
+
+export default MyApp;
+● 客户端使用 useSession 或 getSession (async)
+import { useSession, getSession } from 'next-auth/react';
+
+export default function xxxx(props) {
+const { data: session, status } = useSession()
+
+    console.log('session ', session)
+    console.log('status ', status) // loading | authenticated | unauthenticated
+
+    // 异步请求方式
+    getSession().then(session => {
+    	  console.log('-----', session);
+    	  // ...
+      });
+
+    return <>
+        <ul>
+    				{status !== 'authenticated' && (
+    					<li>
+    						<Link href="/auth">Login</Link>
+    					</li>
+    				)}
+    				{status === 'authenticated' && (
+    					<>
+    						<li>
+    							<Link href="/profile">Profile</Link>
+    						</li>
+    						<li>
+    							<button onClick={logoutHandler}>Logout</button>
+    						</li>
+    					</>
+    				)}
+    			</ul>
+    </>
+
+}
+
+● 加密：比如：bcryptjs
+import { hash, compare } from 'bcryptjs'
+
+// 通过 hash 函数加密明文密码
+const hashedPwd = await hash(pwd, 12)
+
+// 通过 compare 函数比较两个密码是否相同，返回布尔值
+const isValid = await compare(newPwd, hashedPwd)
+● serverSideProps
+import { getSession } from 'next-auth/react';
+
+export async function getServerSideProps(context) {
+const session = await getSession({ req: context.req });
+
+    if (!session) {
+    	return {
+    		redirect: {
+    			destination: '/auth',
+    			permanent: false, // 永久重定向
+    		},
+    	};
+    }
+
+    return {
+    	props: { session },
+    };
+
+}
+路由守卫
+我们不但要对页面的访问权限进行校验，同时需要对接口访问进行校验 session 或 token
+这时获取 session，就不能用客户端的 getSession 了，需要使用 getServerSession
+// /api/update
+
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../auth/[...nextauth]';
+
+export default async handler(req, res) {
+const session = await getServerSession(req, res, authOptions);
+if (!session) {
+res.status(401).json({ message: 'Not authenticated!' });
+return;
+}
+
+// ....
+}
